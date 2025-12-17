@@ -137,9 +137,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           
           <div className="flex items-center gap-4">
             <Avatar className="h-9 w-9 border-2 border-primary/20">
-              <AvatarImage src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" />
+              <AvatarImage src={user?.profilePicture} />
               <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                {user?.fullName?.charAt(0) || 'U'}
+                {user?.fullName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
           </div>
