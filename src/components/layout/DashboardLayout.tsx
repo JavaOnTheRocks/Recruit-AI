@@ -1,5 +1,5 @@
-import { ReactNode } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { ReactNode, useState } from 'react';
+import { Link, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { 
   Home, 
   Users, 
@@ -7,13 +7,20 @@ import {
   Settings, 
   HelpCircle, 
   Menu,
-  ChevronLeft
+  ChevronLeft,
+  LogOut
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useApp } from '@/context/AppContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useState } from 'react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -26,10 +33,16 @@ interface NavItem {
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { workspace, user } = useApp();
+  const { workspace, user, logout } = useApp();
   const location = useLocation();
+  const navigate = useNavigate();
   const { projectId } = useParams();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/signin');
+  };
 
   const isProjectView = location.pathname.includes('/project/');
 
@@ -136,12 +149,29 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
           
           <div className="flex items-center gap-4">
-            <Avatar className="h-9 w-9 border-2 border-primary/20">
-              <AvatarImage src={user?.profilePicture} />
-              <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                {user?.fullName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U'}
-              </AvatarFallback>
-            </Avatar>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                  <Avatar className="h-9 w-9 border-2 border-primary/20">
+                    <AvatarImage src={user?.profilePicture} />
+                    <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                      {user?.fullName?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <div className="flex flex-col space-y-1 p-2">
+                  <p className="text-sm font-medium">{user?.fullName}</p>
+                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
