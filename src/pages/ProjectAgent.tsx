@@ -7,6 +7,26 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useApp } from '@/context/AppContext';
 import { CloudUpload, Mail, FileText, Loader2, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+
+interface EmailAttachment {
+  messageId: string;
+  subject: string;
+  from: string;
+  date: string;
+  attachmentId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+}
 
 export default function ProjectAgent() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -16,6 +36,11 @@ export default function ProjectAgent() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [isLoadingEmails, setIsLoadingEmails] = useState(false);
+  const [emailAttachments, setEmailAttachments] = useState<EmailAttachment[]>([]);
+  const [selectedAttachments, setSelectedAttachments] = useState<Set<string>>(new Set());
+  const [isDownloading, setIsDownloading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -63,6 +88,170 @@ export default function ProjectAgent() {
 
   const removeFile = (index: number) => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleScrapFromEmail = async () => {
+    setIsEmailDialogOpen(true);
+    setIsLoadingEmails(true);
+    setEmailAttachments([]);
+    setSelectedAttachments(new Set());
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.provider_token) {
+        toast({
+          title: 'Google Sign-in Required',
+          description: 'Please sign in with Google to access your emails.',
+        });
+        setIsEmailDialogOpen(false);
+        setIsLoadingEmails(false);
+        
+        await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            scopes: 'https://www.googleapis.com/auth/gmail.readonly',
+            redirectTo: window.location.href,
+          },
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('gmail-scrape', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.requiresGoogleAuth) {
+        toast({
+          title: 'Re-authentication Required',
+          description: data.message,
+        });
+        setIsEmailDialogOpen(false);
+        
+        await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            scopes: 'https://www.googleapis.com/auth/gmail.readonly',
+            redirectTo: window.location.href,
+          },
+        });
+        return;
+      }
+
+      if (data.attachments && data.attachments.length > 0) {
+        setEmailAttachments(data.attachments);
+        toast({
+          title: 'Emails Scanned',
+          description: `Found ${data.attachments.length} resume files in your inbox.`,
+        });
+      } else {
+        toast({
+          title: 'No Resumes Found',
+          description: 'No PDF or DOC attachments found in your recent emails.',
+        });
+        setIsEmailDialogOpen(false);
+      }
+    } catch (error: unknown) {
+      console.error('Email scrape error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to scan emails';
+      toast({
+        title: 'Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      setIsEmailDialogOpen(false);
+    } finally {
+      setIsLoadingEmails(false);
+    }
+  };
+
+  const toggleAttachment = (attachmentId: string) => {
+    setSelectedAttachments(prev => {
+      const next = new Set(prev);
+      if (next.has(attachmentId)) {
+        next.delete(attachmentId);
+      } else {
+        next.add(attachmentId);
+      }
+      return next;
+    });
+  };
+
+  const handleDownloadSelected = async () => {
+    if (selectedAttachments.size === 0) {
+      toast({
+        title: 'No Files Selected',
+        description: 'Please select at least one file to import.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsDownloading(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const selectedFiles = emailAttachments.filter(a => selectedAttachments.has(a.attachmentId));
+      const downloadedFiles: File[] = [];
+
+      for (const attachment of selectedFiles) {
+        const { data, error } = await supabase.functions.invoke('gmail-download-attachment', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: {
+            messageId: attachment.messageId,
+            attachmentId: attachment.attachmentId,
+            filename: attachment.filename,
+            projectId,
+          },
+        });
+
+        if (error) {
+          console.error(`Failed to download ${attachment.filename}:`, error);
+          continue;
+        }
+
+        const blob = new Blob([], { type: attachment.mimeType });
+        const file = new File([blob], attachment.filename, { type: attachment.mimeType });
+        (file as any).emailAttachment = true;
+        (file as any).storagePath = data.storagePath;
+        (file as any).storageUrl = data.url;
+        downloadedFiles.push(file);
+      }
+
+      if (downloadedFiles.length > 0) {
+        setUploadedFiles(prev => [...prev, ...downloadedFiles]);
+        toast({
+          title: 'Files Imported',
+          description: `Successfully imported ${downloadedFiles.length} resume(s) from email.`,
+        });
+      }
+
+      setIsEmailDialogOpen(false);
+    } catch (error: unknown) {
+      console.error('Download error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to download files';
+      toast({
+        title: 'Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const handleRunAgent = async () => {
@@ -154,7 +343,6 @@ export default function ProjectAgent() {
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
-                        // For text files, read content directly
                         if (file.type === 'text/plain') {
                           const reader = new FileReader();
                           reader.onload = (event) => {
@@ -167,7 +355,6 @@ export default function ProjectAgent() {
                           };
                           reader.readAsText(file);
                         } else {
-                          // For PDF/DOC files, show filename and note
                           setJobDescription(`[Uploaded: ${file.name}]\n\nNote: PDF/DOC file content extraction requires backend processing. For now, please paste the text content directly.`);
                           setInputMode('paste');
                           toast({
@@ -246,12 +433,7 @@ export default function ProjectAgent() {
             <Button 
               variant="outline" 
               className="w-full mt-4 gap-2"
-              onClick={() => {
-                toast({
-                  title: 'Coming soon',
-                  description: 'Email integration will be available soon.',
-                });
-              }}
+              onClick={handleScrapFromEmail}
             >
               <Mail className="h-4 w-4" />
               Scrap from Email
@@ -278,6 +460,91 @@ export default function ProjectAgent() {
           </Button>
         </div>
       </div>
+
+      {/* Email Attachments Dialog */}
+      <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Import Resumes from Gmail
+            </DialogTitle>
+            <DialogDescription>
+              Select the resume files you want to import from your recent emails.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingEmails ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">Scanning your emails for resume attachments...</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex-1 overflow-y-auto space-y-2 py-4">
+                {emailAttachments.map((attachment) => (
+                  <div
+                    key={attachment.attachmentId}
+                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+                      selectedAttachments.has(attachment.attachmentId)
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:bg-secondary/50'
+                    }`}
+                    onClick={() => toggleAttachment(attachment.attachmentId)}
+                  >
+                    <Checkbox
+                      checked={selectedAttachments.has(attachment.attachmentId)}
+                      onCheckedChange={() => toggleAttachment(attachment.attachmentId)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-primary shrink-0" />
+                        <span className="font-medium truncate">{attachment.filename}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatFileSize(attachment.size)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate mt-1">
+                        {attachment.subject}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        From: {attachment.from}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t">
+                <p className="text-sm text-muted-foreground">
+                  {selectedAttachments.size} file(s) selected
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsEmailDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleDownloadSelected}
+                    disabled={isDownloading || selectedAttachments.size === 0}
+                  >
+                    {isDownloading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Importing...
+                      </>
+                    ) : (
+                      `Import ${selectedAttachments.size} File(s)`
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

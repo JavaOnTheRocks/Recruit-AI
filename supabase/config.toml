@@ -1,1 +1,7 @@
 project_id = "pjfsjcqdkucgvjsscbew"
+
+[functions.gmail-scrape]
+verify_jwt = false
+
+[functions.gmail-download-attachment]
+verify_jwt = false
