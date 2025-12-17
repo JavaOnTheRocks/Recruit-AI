@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -8,15 +8,37 @@ import { CandidateDetailModal } from '@/components/candidates/CandidateDetailMod
 import { useApp } from '@/context/AppContext';
 import { Eye, Bookmark, Trophy, Star, FileText, Share2, Trash2, Mail, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Candidate } from '@/types';
+
+interface Candidate {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  matchScore: number;
+  recommendation: string;
+  badges: string[];
+  summary: string;
+  aiReasoning: string[];
+  yearsExperience: number;
+  keySkills: string[];
+  projectsCompleted: number;
+  status: 'new' | 'shortlisted' | 'selected' | 'rejected';
+  projectId: string;
+}
 
 export default function ProjectDashboard() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { candidates, updateCandidateStatus, isAuthenticated, projects } = useApp();
+  const { candidates, updateCandidateStatus, isAuthenticated, projects, fetchCandidates } = useApp();
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (projectId) {
+      fetchCandidates(projectId);
+    }
+  }, [projectId]);
 
   if (!isAuthenticated) {
     navigate('/signin');
@@ -24,7 +46,7 @@ export default function ProjectDashboard() {
   }
 
   const project = projects.find(p => p.id === projectId);
-  const projectCandidates = candidates.filter(c => c.projectId === projectId || projectId === '1');
+  const projectCandidates = candidates.filter(c => c.projectId === projectId);
   
   const leaderboardCandidates = projectCandidates
     .filter(c => c.status === 'new')

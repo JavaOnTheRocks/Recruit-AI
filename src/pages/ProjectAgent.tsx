@@ -87,7 +87,7 @@ export default function ProjectAgent() {
     setIsProcessing(true);
     
     try {
-      await runScreeningAgent(projectId!, jobDescription, uploadedFiles.length);
+      await runScreeningAgent(projectId!, jobDescription, uploadedFiles);
       toast({
         title: 'Screening Complete!',
         description: `Successfully analyzed ${uploadedFiles.length} candidates.`,
