@@ -1,8 +1,25 @@
-import { Candidate } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CheckCircle, Linkedin, X } from 'lucide-react';
+
+interface Candidate {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  matchScore: number;
+  recommendation: string;
+  badges: string[];
+  summary: string;
+  aiReasoning: string[];
+  yearsExperience: number;
+  keySkills: string[];
+  projectsCompleted: number;
+  status: 'new' | 'shortlisted' | 'selected' | 'rejected';
+  projectId: string;
+  linkedinUrl?: string;
+}
 
 interface CandidateDetailModalProps {
   candidate: Candidate | null;

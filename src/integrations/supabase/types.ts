@@ -14,6 +14,77 @@ export type Database = {
   }
   public: {
     Tables: {
+      candidates: {
+        Row: {
+          ai_reasoning: Json | null
+          badges: Json | null
+          created_at: string | null
+          email: string | null
+          id: string
+          key_skills: Json | null
+          linkedin_url: string | null
+          match_score: number | null
+          name: string
+          project_id: string
+          projects_completed: number | null
+          recommendation: string | null
+          resume_url: string | null
+          role: string | null
+          status: string
+          summary: string | null
+          updated_at: string | null
+          years_experience: number | null
+        }
+        Insert: {
+          ai_reasoning?: Json | null
+          badges?: Json | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          key_skills?: Json | null
+          linkedin_url?: string | null
+          match_score?: number | null
+          name: string
+          project_id: string
+          projects_completed?: number | null
+          recommendation?: string | null
+          resume_url?: string | null
+          role?: string | null
+          status?: string
+          summary?: string | null
+          updated_at?: string | null
+          years_experience?: number | null
+        }
+        Update: {
+          ai_reasoning?: Json | null
+          badges?: Json | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          key_skills?: Json | null
+          linkedin_url?: string | null
+          match_score?: number | null
+          name?: string
+          project_id?: string
+          projects_completed?: number | null
+          recommendation?: string | null
+          resume_url?: string | null
+          role?: string | null
+          status?: string
+          summary?: string | null
+          updated_at?: string | null
+          years_experience?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -44,12 +115,84 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          candidates_screened: number | null
+          created_at: string | null
+          emails_sent: number | null
+          id: string
+          job_description: string | null
+          status: string
+          title: string
+          updated_at: string | null
+          workspace_id: string
+        }
+        Insert: {
+          candidates_screened?: number | null
+          created_at?: string | null
+          emails_sent?: number | null
+          id?: string
+          job_description?: string | null
+          status?: string
+          title: string
+          updated_at?: string | null
+          workspace_id: string
+        }
+        Update: {
+          candidates_screened?: number | null
+          created_at?: string | null
+          emails_sent?: number | null
+          id?: string
+          job_description?: string | null
+          status?: string
+          title?: string
+          updated_at?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          role: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          role: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          role?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_workspace_id: { Args: { user_uuid: string }; Returns: string }
+      user_owns_project: { Args: { project_uuid: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
