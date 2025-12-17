@@ -127,12 +127,61 @@ export default function ProjectAgent() {
               </TabsList>
             </Tabs>
 
-            <Textarea
-              placeholder="Paste your job description here. Include key responsibilities, qualifications, and preferred skills for optimal AI screening."
-              value={jobDescription}
-              onChange={(e) => setJobDescription(e.target.value)}
-              className="min-h-[280px] resize-none bg-secondary/50 border-0"
-            />
+            {inputMode === 'paste' ? (
+              <Textarea
+                placeholder="Paste your job description here. Include key responsibilities, qualifications, and preferred skills for optimal AI screening."
+                value={jobDescription}
+                onChange={(e) => setJobDescription(e.target.value)}
+                className="min-h-[280px] resize-none bg-secondary/50 border-0"
+              />
+            ) : (
+              <div className="min-h-[280px] flex flex-col">
+                <div
+                  className="flex-1 border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 cursor-pointer flex flex-col items-center justify-center border-border hover:border-primary/50 hover:bg-secondary/50"
+                  onClick={() => document.getElementById('jd-file-input')?.click()}
+                >
+                  <FileText className="h-10 w-10 mb-3 text-primary" />
+                  <p className="text-primary font-medium">
+                    Click to upload Job Description file
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Supports PDF, DOC, DOCX, TXT
+                  </p>
+                  <input
+                    id="jd-file-input"
+                    type="file"
+                    accept=".pdf,.doc,.docx,.txt"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        // For text files, read content directly
+                        if (file.type === 'text/plain') {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            setJobDescription(event.target?.result as string);
+                            setInputMode('paste');
+                            toast({
+                              title: 'File Loaded',
+                              description: `Loaded job description from ${file.name}`,
+                            });
+                          };
+                          reader.readAsText(file);
+                        } else {
+                          // For PDF/DOC files, show filename and note
+                          setJobDescription(`[Uploaded: ${file.name}]\n\nNote: PDF/DOC file content extraction requires backend processing. For now, please paste the text content directly.`);
+                          setInputMode('paste');
+                          toast({
+                            title: 'File Selected',
+                            description: 'For best results, paste the job description text directly.',
+                          });
+                        }
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Resume Upload Section */}
